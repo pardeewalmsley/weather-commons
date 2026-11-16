@@ -1,0 +1,75 @@
+{
+ "about": "The ten moments on the timeline. For each: the airport report it shows (time, Dubai time, must match a report in april-2024.json), why it was chosen, the place in Dubai the camera flies to and the camera view there (lon, lat in degrees; height in metres; heading and pitch in degrees), and the news report shown in the panel. Moments, places and views were chosen by hand (interpretive). The news texts are placeholders until the real ones are added: each needs a headline, a short text, the source (publication, date, link) and, if there is one, a photo with its credit and licence. Put photos in data/photos/ (under 1 MB each, and only ones you may publish) and give the path, e.g. \"data/photos/01.jpg\".",
+ "moments": [
+  {
+   "time": "2024-04-15T00:00",
+   "why": "Calm before the storm",
+   "place": "The Dubai coast, from over the Gulf",
+   "camera": { "lon": 55.105, "lat": 25.095, "height": 2500, "heading": 75, "pitch": -15 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-15T18:11",
+   "why": "First thunderstorm reaches the airport",
+   "place": "Dubai International Airport",
+   "camera": { "lon": 55.330, "lat": 25.222, "height": 600, "heading": 45, "pitch": -14 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T02:00",
+   "why": "Heavy thunderstorm in the night",
+   "place": "Dubai Creek and Deira",
+   "camera": { "lon": 55.312, "lat": 25.228, "height": 500, "heading": 5, "pitch": -15 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T07:18",
+   "why": "First squall",
+   "place": "Sheikh Zayed Road",
+   "camera": { "lon": 55.252, "lat": 25.190, "height": 300, "heading": 42, "pitch": -10 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T08:40",
+   "why": "Morning downpour",
+   "place": "Dubai Marina",
+   "camera": { "lon": 55.125, "lat": 25.066, "height": 400, "heading": 40, "pitch": -12 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T12:00",
+   "why": "A lull: no rain at the airport",
+   "place": "Al Barsha",
+   "camera": { "lon": 55.185, "lat": 25.100, "height": 450, "heading": 45, "pitch": -15 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T15:11",
+   "why": "Worst visibility of the storm",
+   "place": "Downtown Dubai and the Burj Khalifa",
+   "camera": { "lon": 55.2556, "lat": 25.1800, "height": 800, "heading": 42, "pitch": -14 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T18:40",
+   "why": "Strongest squall",
+   "place": "Business Bay",
+   "camera": { "lon": 55.268, "lat": 25.168, "height": 350, "heading": 345, "pitch": -12 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T19:10",
+   "why": "The storm passes",
+   "place": "Mirdif",
+   "camera": { "lon": 55.400, "lat": 25.200, "height": 400, "heading": 30, "pitch": -15 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  },
+  {
+   "time": "2024-04-16T22:00",
+   "why": "Clear at the airport; ERA5 still has rain",
+   "place": "Dubai International Airport, after the storm",
+   "camera": { "lon": 55.405, "lat": 25.232, "height": 1500, "heading": 295, "pitch": -20 },
+   "news": { "placeholder": true, "headline": "News report to come", "text": "What news reports said was happening in Dubai at this moment will go here.", "source": "", "url": "", "photo": "", "photoCredit": "" }
+  }
+ ]
+}
