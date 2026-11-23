@@ -17,9 +17,9 @@
   .stage-top .site-header { max-width: var(--wide); margin: 0 auto; padding: 14px 16px 10px; }
   .panel {
     /* --header is the header's height, measured by the script at the end of the page. */
-    position: absolute; z-index: 1; top: calc(var(--header, 96px) + 12px); right: 12px; width: 17rem; max-width: calc(100% - 24px);
+    position: absolute; z-index: 1; top: calc(var(--header, 96px) + 12px); right: 12px; width: 20rem; max-width: calc(100% - 24px);
     max-height: calc(100% - var(--header, 96px) - var(--timeline, 110px) - 60px); overflow-y: auto;  /* clear of the timeline */
-    background: var(--panel-bg); border: 1px solid var(--line); padding: 10px 12px; font-size: 13px; line-height: 1.4;
+    background: var(--panel-bg); border: 1px solid var(--line); padding: 16px 18px; font-size: 13px; line-height: 1.45;
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); /* keeps text readable over the map */
   }
   :root { --panel-bg: rgba(255, 255, 255, 0.75); }
@@ -29,9 +29,9 @@
   .panel summary::-webkit-details-marker { display: none; }
   .panel summary::after { content: "–"; margin-left: auto; font-size: 16px; }
   .panel details:not([open]) summary::after { content: "+"; }
-  .panel h1 { font-size: 16px; line-height: 1.25; margin: 0; }
+  .panel h1 { font-size: 16px; line-height: 1.3; margin: 0; }
+  .panel #moment { margin-top: 12px; }
   .panel p { margin: 0 0 8px; }
-  .panel .byline { margin: 4px 0 8px; }
   .panel .bar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 8px 0 6px; }
   .panel button { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 2px 8px; cursor: pointer; }
   .panel .label { margin: 0 0 4px; font-size: 12px; }
@@ -39,15 +39,24 @@
   .key li { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; }
   .key span { flex: none; width: 16px; height: 3px; background: var(--c); transform: translateY(-3px); }
   .key em { font-style: normal; font-size: 11px; }
-  /* The news panel: a photo (or a placeholder box), the place, headline, text and source. */
-  .news-photo { margin: 0 0 8px; aspect-ratio: 16 / 9; background: var(--soft); border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }
-  .news-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .news-photo span { font-size: 12px; color: var(--muted); }
+  /* The panel at each moment: the place, what happened, the airport's weather, then the readings with the key. */
   .panel .headline { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 0 0 6px; }
-  .panel .placeholder { color: var(--muted); font-style: italic; }
-  /* In the timeline the key runs across in one or two lines. */
-  .tl-key { display: flex; flex-wrap: wrap; gap: 2px 18px; margin: 0 0 6px; }
-  .tl-key li { margin: 0; }
+  .panel #readings { margin: 14px 0 0; }
+  .panel #readings li { gap: 10px; margin-bottom: 8px; }
+  .panel #readings li:last-child { margin-bottom: 0; }
+  .panel #readings li { align-items: center; }
+  .key-icon { flex: none; width: 24px; height: 16px; }
+  /* The weather graphic: the 3D view's symbols layered from this moment's numbers (js/weather.js). */
+  .weather-graphic { margin: 14px 0; }
+  /* Kept short so the icon and the readings under it fit in the panel without scrolling. */
+  .weather-graphic svg { display: block; width: 100%; height: 104px; }
+  .wg-ground { stroke: var(--muted); stroke-width: 1; }
+  /* The camera buttons: top left of the map, under the site header. */
+  .view-buttons { position: absolute; z-index: 1; top: calc(var(--header, 96px) + 12px); left: 12px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .view-buttons button { text-align: center; font: inherit; font-size: 13px; color: var(--fg); background: var(--panel-bg); border: 1px solid var(--line); padding: 3px 10px; cursor: pointer; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .view-buttons button:hover { background: var(--bg); }
+  .panel #news { border-top: 1px solid var(--line); padding-top: 8px; }
+  .panel #news[hidden] { display: none; }
   /* The timeline: along the bottom of the map, above Cesium's credits. */
   .timeline {
     position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 34px;
@@ -73,7 +82,7 @@
   .tl-legend { font-size: 11px; margin: 0; }
   main.below { padding-top: 40px; }
   @media (max-width: 600px) {
-    .panel { width: auto; left: 12px; }
+    .panel { width: auto; left: 12px; top: calc(var(--header, 96px) + 212px); }  /* under the camera buttons */
   }
 </style>
 </head>
@@ -93,25 +102,31 @@
     </header>
   </div>
 
-  <!-- 1. Event, 2. Simulate and 4. Narrate: the 3D city, and what the news reported at each moment.
-       The panel's news comes from data/moments.json; the longer text is below the map. -->
+  <!-- The camera views (js/viewer.js). -->
+  <div class="view-buttons" role="group" aria-label="Camera views">
+    <button id="all-dubai" type="button">All of Dubai</button>
+    <button id="home" type="button">Airport</button>
+    <button id="burj" type="button">Burj Khalifa</button>
+    <button id="burj-al-arab" type="button">Jumeirah Burj Al Arab</button>
+    <button id="harbour" type="button">Dubai Harbour</button>
+    <button id="sharjah" type="button">Sharjah</button>
+  </div>
+
+  <!-- 1. Event, 2. Simulate and 4. Narrate: the 3D city, and at each moment the place, what happened and the
+       readings (js/weather.js, data/moments.json). The longer text is below the map. -->
   <section class="panel" aria-label="In Dubai at this moment">
     <details open>
       <summary><h1>Mapping the extreme rain event in Dubai, April 2024</h1></summary>
-      <p class="byline muted">11 · Alexander Walmsley</p>
-      <div id="news" aria-live="polite">
-        <p class="label" id="news-place"></p>
-        <figure class="news-photo" id="news-photo"><span>Photo to come</span></figure>
-        <p class="headline" id="news-headline"></p>
-        <p id="news-text"></p>
-        <p class="muted" id="news-source"></p>
+      <div id="moment" aria-live="polite">
+        <p id="moment-airport"></p>
+        <figure class="weather-graphic" id="weather-graphic"></figure>
+        <ul class="key" id="readings" aria-label="The storm at this moment, and the key"></ul>
+        <div id="news" hidden>
+          <p class="headline" id="news-headline"></p>
+          <p id="news-text"></p>
+          <p class="muted" id="news-source"></p>
+        </div>
       </div>
-      <p class="bar">
-        <button id="play" type="button">Pause motion</button>
-        <button id="home" type="button">This view</button>
-        <button id="all-dubai" type="button">All of Dubai</button>
-        <a href="#about">About ↓</a>
-      </p>
       <p id="globe-status" class="muted">Loading the globe…</p>
     </details>
   </section>
@@ -123,9 +138,7 @@
       <button id="tl-play" type="button">Play</button>
       <button id="tl-next" type="button" aria-label="Next airport report">▶</button>
       <span><span id="tl-time">…</span> <span class="muted">Dubai time</span></span>
-      <span id="tl-weather" class="muted"></span>
     </div>
-    <ul class="key tl-key" id="readings" aria-label="The storm at this moment, and the key"></ul>
     <div id="tl-track">
       <svg id="tl-chart" preserveAspectRatio="none" aria-hidden="true"><line id="tl-cursor" y1="0" y2="100"/></svg>
       <input id="tl-slider" type="range" min="0" step="1" aria-label="Time">
@@ -136,44 +149,26 @@
 </div>
 
 <main class="below" id="about">
-<h2>About this view</h2>
-<p class="lede">On 15 and 16 April 2024 the United Arab Emirates had its heaviest rain since records began in 1949, and Dubai flooded. Some forecast models saw it coming days ahead; others missed it. What did each model see, and when?</p>
-<p>The map shows the storm over all of Dubai, from Jebel Ali to Deira and the airport, from 15 April 00:00 to 17 April 00:00, Dubai time. Dubai International Airport, about 9 km from the Burj Khalifa, issued 100 weather reports in those two days: every hour in calm weather, every few minutes in the storms. The timeline steps through ten of them, chosen by hand to mark the storm's turning points: the calm before, the first thunderstorm, the night storm, the first squall, the morning downpour, a lull, the worst visibility, the strongest squall, the storm passing and the clear sky after. Wind and visibility come from those reports (observed). The reports give no rain amounts, so rain and cloud come from ERA5, a reconstruction of past weather that fits a weather model to observations (reanalysed), for the hour each report falls in.</p>
-<p>The two don't always agree. The airport reports its heaviest rain and lowest visibility on 16 April between about 08:00 and 19:00; ERA5 puts its heaviest hours later, from about 14:00 to 22:00. ERA5 adds up to about 122 mm over the two days for a grid cell about 28 km across; that is an estimate, not a rain-gauge reading.</p>
-<p>The same numbers are used across the whole city: there is one airport report and one ERA5 grid cell for all of it. How many symbols there are follows the numbers; where each one sits is random. The symbols move 4 times faster than the real wind and rain. At each of the ten moments the camera flies to a different part of the city, and the panel on the right shows what the news reported there and then. Drag the map to look around; This view flies back to the moment's view, and All of Dubai shows the whole city.</p>
-<ul class="key">
-  <li><span style="--c:#e8b100"></span>Wind: golden-yellow arrows point and drift where the air goes; longer arrows for stronger wind.</li>
-  <li><span style="--c:#4a6fa5"></span>Rain: grey-blue streaks, more of them for heavier rain, falling on the slant the wind gives them.</li>
-  <li><span style="--c:#00a3b4"></span>Cloud: see-through teal circles of random sizes in three bands of the sky (low, mid, high), more of them for more cover, so that where they overlap the cloud looks thicker; they drift with the wind.</li>
-  <li><span style="--c:#b000b0"></span>Visibility: a dashed purple ring around the airport, as far as you can see from there.</li>
-</ul>
-<p>The buildings (from OpenStreetMap) are white, over satellite imagery in its own colours; the weather symbols are in their own colours on top. Drag to move, scroll to zoom, Ctrl-drag to tilt.</p>
-<p class="muted">11 · Alexander Walmsley · started 2026-11-02</p>
+<h2>The Aftermath</h2>
+<p class="muted">Draft: a first outline of each part. Figures to be checked and sources (publication, date, link) to be added.</p>
 
-<!-- 3. Situate -->
-<h2>Situate</h2>
-<p>Still to come: who forecasts for the Gulf and with which models, the flooding, the claims about cloud seeding, and what attribution studies say about climate change.</p>
+<h3>The damage</h3>
+<p>On 15 and 16 April 2024 the United Arab Emirates had its heaviest rain since records began in 1949. The National Center of Meteorology (NCM) measured 254.8 mm in under 24 hours at Khatm Al Shakla near Al Ain, more than the country usually gets in a year. In Dubai, Sheikh Zayed Road and other main roads flooded, Metro stations closed, and many homes were cut off or left without power and water for days. Dubai International Airport, one of the world's busiest, diverted and cancelled hundreds of flights, and it took days to recover. People died in the UAE and in neighbouring Oman, where flash floods struck a day earlier.</p>
 
-<!-- 4. Narrate -->
-<h2>Narrate</h2>
-<p>The panel on the right will tell what was happening in Dubai at each moment, from news reports, with a photo. For now it holds placeholders; the texts, sources and photos will follow.</p>
+<h3>Conspiracy theories</h3>
+<p>Within hours, posts on social media blamed the UAE's cloud-seeding programme for the floods: that seeding had gone wrong, or that the weather had been changed on purpose. Early news reports added to this by quoting a forecaster who said seeding flights had flown in the days before the storm; the NCM later said that no seeding took place during the storm itself. The claims spread far beyond the region and joined older theories about weather control and geoengineering.</p>
+<p>Meteorologists answered that seeding cannot make a storm of this size: at best it adds a little rain to clouds that are already able to rain, and this storm was a large weather system that forecast models had seen coming days ahead. Attribution scientists pointed instead to a warming climate, which makes heavy rain of this kind heavier, though the data for the region were too few to say by exactly how much.</p>
+
+<h3>The UAE cloud-seeding program</h3>
+<p>The UAE has seeded clouds since the 1990s, now through the NCM. Planes fly into growing convective clouds, often over the Hajar Mountains in the east, and fire flares of salt particles that help water droplets grow large enough to fall. Since 2015 the UAE Research Program for Rain Enhancement Science has funded research into it around the world. The country gets very little rain and draws most of its drinking water from the sea through desalination; seeding is one of the ways it tries to add to its water. How much rain seeding really adds is still debated among scientists.</p>
 
 <h2>Sources and limits</h2>
 <ul>
-  <li>Buildings: Cesium OSM Buildings, made by Cesium from OpenStreetMap data, © OpenStreetMap contributors, ODbL. Streamed from Cesium ion, not stored here. Cartographic.</li>
-  <li>Satellite imagery: the default imagery from Cesium ion (credited on the globe), in its own colours (it can be set back to black and white with <code>COLOUR_IMAGERY</code> in <code>js/config.js</code>). Cartographic.</li>
-  <li>Ground heights: Cesium World Terrain, from Cesium ion. Cartographic.</li>
-  <li>The grey sky and the lighting from the camera are design choices: they say nothing about the weather or the time of day. Interpretive.</li>
-  <li>Wind, gusts, visibility and present weather: the 100 METAR reports from Dubai International Airport (OMDB, 25.25° N, 55.36° E) between 15 April 00:00 and 17 April 00:00 2024, Dubai time, from the Iowa Environmental Mesonet ASOS/METAR archive, Iowa State University (mesonet.agron.iastate.edu), downloaded 2026-11-16. Observed. Wind is measured 10 m above the ground; speeds converted from knots to km/h; visibility 9999 or CAVOK shown as "10 km or more". When a report gives a speed but no fixed direction ("variable"), no arrows are drawn. The reports give no rain amounts. Changes: decoded from the report text by <code>tools/fetch_april_2024.mjs</code>; present-weather codes put into plain words.</li>
-  <li>Rain (mm in the hour) and cloud cover (low, mid, high, %): ERA5 hourly reanalysis by ECMWF for the Copernicus Climate Change Service, through the Open-Meteo historical weather API (CC BY 4.0), at the ERA5 grid cell at 25.25° N, 55.25° E (about 28 km across), downloaded 2026-11-16. Reanalysed. Contains modified Copernicus Climate Change Service information 2024. Each airport report takes the ERA5 hour it falls in (the hour ending at or after it). ERA5 smooths storms like this one over its grid, and here its rain comes later than the airport's.</li>
-  <li>All of it is saved in <code>data/april-2024.json</code>; <code>tools/fetch_april_2024.mjs</code> downloads it again.</li>
-  <li>The weather diagram on the globe: drawn from those numbers, the same across all of Dubai (55.03–55.45° E, 24.93–25.33° N, about 42 by 44 km); no symbols outside it. Interpretive. The symbols are drawn in six rings centred under the camera, each twice as wide as the one inside it, with symbols twice the size, twice as far apart and moving twice as fast; the innermost ring is about 1.5 times the camera's height in half-width. So the symbols look about as dense on screen near and far, and whichever way the camera points, while the number drawn stays the same. Symbols range from a quarter of their own size close by to 32 times far off; where one ring meets the next, their size doubles. Rings out of view or outside Dubai are not drawn. Cloud in the outer rings is more see-through, so the city still shows from far off (its opacity is divided by 1.5 at twice the size, 2 at 4 times, and so on); when the camera climbs or drops past a step, the pattern rearranges once. The labels and the visibility ring are at the airport, where the reports come from. How many symbols there are follows the numbers; where each one starts is random, though the same each time the page loads. They move 4 times faster than the real wind and falling rain, so the movement shows from a distance; a symbol that leaves the square comes back on the other side, and rain that reaches the ground starts again at 1 km. Cloud circles drift with the 10 m wind, though real wind is usually stronger higher up. The movement starts paused if your computer is set to reduce motion. Golden-yellow arrows, 70 % opaque, show wind: 2,500 in each ring's square scattered from 30 m up to the cloud base at 1 km (wind is measured at 10 m), pointing where the air goes, 5 m long for each metre per second (20–70 m). Grey-blue streaks, 70 % opaque, show rain: 25 m long, scattered from the ground to 1 km, 13,000 per ring at 50 mm per hour and fewer for lighter rain (square-root scale), slanted along the path of a drop falling 8 m/s in that wind. Teal circles show cloud cover: always facing the camera, 15 % opaque, 30–150 m in radius at random, 800 per band per ring at 100 % cover, scattered through typical heights for each band (low 1–2 km, mid 2–6 km, high 6–9 km). The dashed purple ring is the visibility distance around the airport, drawn when under 10 km.</li>
-  <li>The timeline: grey-blue bars are ERA5 rain in each hour (reanalysed). Ticks are ten of the airport reports (observed), highlighted where they report rain, drizzle or hail. The ten, and the reason given for each, were chosen by hand (interpretive); the other 90 are kept in the data file but not shown. Clicking the chart jumps to the nearest of the ten; Play shows each for 7 seconds.</li>
-  <li>The ten moments' places and camera views (the coast, the airport, Dubai Creek and Deira, Sheikh Zayed Road, Dubai Marina, Al Barsha, Downtown, Business Bay, Mirdif, the airport again) were chosen by hand to move through the city. Interpretive: the weather data does not say where in the city anything happened. They are in <code>data/moments.json</code>.</li>
-  <li>News reports in the panel: placeholders for now. Each will give its source (publication, date, link), and each photo its credit and licence.</li>
-  <li>No forecasts of the April 2024 storm yet. Each model will be labelled modelled; satellite and rain-gauge data observed.</li>
+  <li>Buildings: Cesium OSM Buildings, made by Cesium from OpenStreetMap data, © OpenStreetMap contributors, ODbL. Streamed from Cesium ion, not stored here. Building heights in OpenStreetMap are incomplete and partly estimated, and some buildings are plain blocks (the Burj Al Arab has no sail). Cartographic.</li>
+  <li>Satellite imagery: the default imagery from Cesium ion (credited on the globe), in its own colours. Cartographic.</li>
+  <li>Wind, gusts and visibility: the 100 METAR reports from Dubai International Airport (OMDB, 25.25° N, 55.36° E) between 15 April 00:00 and 17 April 00:00 2024, Dubai time, from the Iowa Environmental Mesonet ASOS/METAR archive, Iowa State University (mesonet.agron.iastate.edu), downloaded 2026-11-16. Observed. Wind is measured 10 m above the ground; speeds converted from knots to km/h. The reports give no rain amounts. One report is used for the whole map.</li>
+  <li>Rain (mm in the hour) and cloud cover (low, mid, high, %): ERA5 hourly reanalysis by ECMWF for the Copernicus Climate Change Service, through the Open-Meteo historical weather API (CC BY 4.0), at the ERA5 grid cell at 25.25° N, 55.25° E (about 28 km across), downloaded 2026-11-16. Reanalysed: an estimate, not a rain-gauge reading. Contains modified Copernicus Climate Change Service information 2024. ERA5 smooths storms like this one over its grid, and its heaviest rain comes later than the airport's.</li>
 </ul>
-<p>What this sketch cannot show yet: forecasts of the storm, rain-gauge totals, or how the weather differed across the city. The airport is about 9 km from the Burj Khalifa, and ERA5's grid cell is about 28 km across: neither says how the weather differed from one part of the city to another. Building heights in OpenStreetMap are incomplete and partly estimated.</p>
 
 <footer class="site-footer">
   <p>Mapping the extreme rain event in Dubai, April 2024 · Alexander Walmsley · Realtime Weather working group, Weather Commons</p>

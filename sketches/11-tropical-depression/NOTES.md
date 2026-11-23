@@ -4,13 +4,38 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Next
 
-- 2026-11-16: news text, source, link and photo for each of the ten moments, in data/moments.json (now placeholders). Photos only if they may be published, with credit and licence; under 1 MB each in data/photos/.
+- 2026-11-23: check the figures in The Aftermath (254.8 mm at Khatm Al Shakla, record since 1949, flight cancellations, deaths in the UAE and Oman, seeding since the 1990s, UAEREP since 2015) and add sources (publication, date, link) to each part; then remove the "Draft" line.
+- 2026-11-23: optional: a short news text, with its source, for some of the ten moments, in data/moments.json.
 - 2026-11-09: new direction: compare forecasts of the Dubai rain of 15–16 April 2024 over a 3D city model. See PLAN.md.
 - Make a Cesium ion account and token limited to pardeewalmsley.github.io and localhost; paste it in js/config.js. The trial token expires with each CesiumJS release.
 - Step 2 of PLAN.md: one forecast (GFS, run from 14 April) and IMERG on the timeline.
 
 ## Decisions
 
+- 2026-11-23: second part of the project: the conspiracy theories about cloud seeding after the storm. Text below the map is now "The Aftermath" (The damage, Conspiracy theories, The UAE cloud-seeding program), drafted by Claude from widely reported facts and marked as a draft. Situate and Narrate sections removed from the page; the page's Sources and limits cut to buildings, imagery, METAR and ERA5. The full list stays in README.md.
+- 2026-11-23: three more camera places, each circling slowly: Jumeirah Burj Al Arab (low, looking up; OSM has it as a plain block), Dubai Harbour (from above), Sharjah (over Khalid Lagoon). Weather area extended north and east (to 55.50° E, 25.42° N) so Sharjah has symbols; the weather there is still the Dubai airport report and the same ERA5 cell.
+- 2026-11-23: panel trimmed: no byline (the name is in the footer and README), no line on why each moment was chosen (still in data/moments.json and read out by the timeline for screen readers), no Pause motion or About buttons. Motion still starts paused under reduced motion, but can no longer be paused by hand. Camera buttons' text centred.
+- 2026-11-23: the Burj Khalifa view circles the tower like the airport view: low (about 265 m up), 1.9 km out, looking 5° up at 430 m on the tower (BURJ_VIEW). Button renamed "Airport".
+- 2026-11-23: third camera view, Burj Khalifa (BURJ_VIEW in js/config.js, the old opening view: 2.7 km south-west of it, looking north-east, no turning). The three buttons are stacked at the top left of the map: All of Dubai, Airport view, Burj Khalifa.
+- 2026-11-23: lighting follows the time of day: the sun (CesiumJS SunLight, clock set to each moment) lights the city, buildings cast shadows (shadow map, 6 km, soft; bias raised against stripes on flat roofs, using CesiumJS internals). Cloud and rain dim it: gloom = 0.65 × cover (low counts most) + 0.35 × rain (full at 10 mm/h); brightness = daylight × (1 − 0.65 × gloom) sets the light, the buildings' glow (0.07 at night to BUILDING_GLOW 0.25), imagery brightness and saturation, and the sky grey. Shadows fade out as cover goes from 20 % to 95 %. Night moments (00:00, 02:00, 19:10, 22:00) are dark, kept accurate on purpose (decided 2026-11-23). The icon's sun shows only while the sun is up. Replaces the light from the camera.
+- 2026-11-23: layout: the weather icon is 96 px tall so the icon and readings fit in the panel without scrolling (checked at 1366 × 768). Airport view and All of Dubai moved to the top left of the map; Pause motion and About stay in the panel. On narrow screens the panel starts below those buttons.
+- 2026-11-23: the camera circles the airport slowly (AIRPORT_VIEW: range 4 km, pitch -14°, 1°/s, starting looking north-east), aimed a little right so the airport sits in the map area the panel leaves free. Dragging or zooming stops it; Airport view flies back and restarts it; Pause motion stops it with the symbols; still under reduced motion. The timeline never moves the camera.
+- 2026-11-23: the camera stays over the airport for all ten moments; the timeline changes only the weather. Opening view AIRPORT_VIEW in js/config.js (replaces START_VIEW, the Burj Khalifa view). Buttons: Airport view, All of Dubai. Places and camera views per moment removed from data/moments.json (they were: coast, airport, Creek and Deira, Sheikh Zayed Road, Dubai Marina, Al Barsha, Downtown, Business Bay, Mirdif, airport after).
+- 2026-11-23: weather icon: wind arrows always point right (direction only in the text), no north marker; all symbols overlap and the whole icon is centred in its frame, whatever it holds. Sun at full colour.
+- 2026-11-23: the weather graphic redrawn as a weather-app style icon, after reference images: outlined clouds per band (high pale at the back, low teal in front), thick rain streaks under the front cloud, 1–3 bold wind arrows, the visibility ring, and a pale yellow sun when the sky is not fully covered. The key uses the same small symbols.
+- 2026-11-23: weather graphic in the panel: the 3D view's symbols layered in one small picture from each moment's numbers (cloud circles in three bands, wind arrows north up, rain streaks slanted by the east–west wind, visibility ring up to 10 km wide). The key uses a small version of each symbol instead of a coloured line. Kept still, not animated (decided 2026-11-23).
+- 2026-11-23: photos and X posts dropped from the panel. X embeds were blocked in Edge (tracking prevention) and in other browsers with strict privacy or ad blockers, the posts found did not match the moments' times, and copied videos can't be published (rights, and no video files in git). The panel now shows the place, why the moment was chosen, the airport's weather in words and the readings with the key (moved up from the timeline). Optional news text (headline, text, source, url) stays in data/moments.json and shows under the readings once filled in. The X posts found, in case they are useful later:
+  - 2024-04-15T00:00 https://x.com/mehroseahmed/status/1779901981500244270
+  - 2024-04-15T18:11 https://x.com/mudasar_khan7/status/1779895040694726966
+  - 2024-04-16T02:00 https://x.com/dxbmaven/status/1780247336498716882
+  - 2024-04-16T07:18 https://x.com/uroojjawed12/status/1780215464062337378
+  - 2024-04-16T08:40 https://x.com/weatherwalay/status/1780211159968219436
+  - 2024-04-16T12:00 https://x.com/AbuBakar_Kohati/status/1780224142282793092
+  - 2024-04-16T15:11 https://x.com/uroojjawed12/status/1780215464062337378
+  - 2024-04-16T18:40 https://x.com/dxbmaven/status/1780247336498716882
+  - 2024-04-16T19:10 https://x.com/h_dwtc/status/1780312073815093446
+  - 2024-04-16T22:00 https://x.com/ObscureHidden/status/1780312763883233455
+- 2026-11-16: posts from X can be shown in the news panel in place of the photo: a `post` field (the post's address) in each moment in data/moments.json. Embedded with X's script, loaded only when needed, dnt on; a link is shown if the post or script can't load. No video files are copied into the sketch.
 - 2026-11-16: buildings white, not grey: a custom shader gives them their own glow (BUILDING_GLOW = 0.6 in js/config.js; 0 = grey sides as before, 1 = flat white) on top of the light from the camera, so a little shading still shows their shapes.
 - 2026-11-16: satellite imagery in colour (COLOUR_IMAGERY = true in js/config.js; false for black and white as before). Buildings stay white, sky grey. Golden-yellow wind arrows blend into the sandy ground inland; they stand out over the sea.
 - 2026-11-16: title changed to Mapping the extreme rain event in Dubai, April 2024 (panel, page title, README header, footer). Folder name 11-tropical-depression kept: sketch folders are never renamed.
@@ -39,9 +64,10 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Questions
 
+- 2026-11-23: Sharjah gets Dubai airport's weather. Sharjah has its own airport (OMSJ) with METAR reports; worth showing those there?
+- 2026-11-23: with Pause motion gone, the moving symbols and turning camera can't be stopped by hand (only by the computer's reduce-motion setting). Fine, or bring back a small pause control?
 - 2026-11-16: colour satellite imagery: check with a facilitator against the shared colour rule ("no colour except the source colours of scientific imagery"). Colour imagery is arguably its own source colours.
 - 2026-11-16: wind arrows are hard to see on sandy ground; darker outline, or another colour?
-- 2026-11-16: are the ten places right for the news stories that will come? Change them in data/moments.json (camera: lon, lat, height, heading, pitch).
 - 2026-11-16: the pattern rearranges when the camera climbs or drops past a step; is that jump acceptable?
 - 2026-11-16: symbols double in size where one ring meets the next; is the seam noticeable? A cross-fade between rings would hide it.
 - 2026-11-16: grey-blue rain at 70 % is subtle against the grey city; stronger, or keep it quiet?
@@ -84,3 +110,19 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 - 2026-11-16: sketch renamed Mapping the extreme rain event in Dubai, April 2024.
 - 2026-11-16: satellite imagery in colour.
 - 2026-11-16: buildings white instead of grey.
+- 2026-11-16: post field and X embed in the news panel.
+- 2026-11-23: readings, key and moment description moved into the side panel; photo box and X embeds removed.
+- 2026-11-23: weather graphic and symbol key in the side panel.
+- 2026-11-23: weather graphic redrawn as a layered weather icon.
+- 2026-11-23: weather icon centred, overlapping, fixed wind arrows, no north marker.
+- 2026-11-23: camera fixed over the airport; timeline changes only the weather.
+- 2026-11-23: slow camera turn round the airport.
+- 2026-11-23: smaller weather icon; camera buttons at the top left of the map.
+- 2026-11-23: time-of-day sunlight and shadows, dimmed by cloud and rain.
+- 2026-11-23: Burj Khalifa view; camera buttons stacked at the top left.
+- 2026-11-23: camera circles the Burj Khalifa, looking up; Airport button renamed.
+- 2026-11-23: panel trimmed (byline, moment line, Pause motion, About removed); camera button text centred.
+- 2026-11-23: more space in the panel (padding, gaps around the icon and between readings); still fits without scrolling at 1366 × 768.
+- 2026-11-23: Jumeirah Burj Al Arab, Dubai Harbour and Sharjah views; weather area extended to Sharjah.
+- 2026-11-23: no jump between the flight to a place and the start of its turning (the flight now ends at the turning's exact first view, including the small turn clear of the panel).
+- 2026-11-23: text below the map restructured as The Aftermath (draft); Situate and Narrate removed; short Sources and limits.
