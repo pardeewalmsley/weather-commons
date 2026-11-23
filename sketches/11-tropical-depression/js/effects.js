@@ -7,7 +7,7 @@
 // How many symbols there are follows the numbers; where each one starts is random (but the same each time).
 // Everything moves 4 times faster than real (SPEED), so the movement shows from a distance. A symbol that
 // leaves the square comes back on the other side; rain that reaches the ground starts again at the cloud base.
-// The same numbers (one airport report and one ERA5 hour) are used across all of Dubai (window.WEATHER_AREA).
+// The same numbers (one airport report and one ERA5 hour) are used across all of Dubai and Sharjah (window.WEATHER_AREA).
 // The symbols are drawn in rings centred under the camera: a square close by, then rings around it, each twice
 // as wide as the last, with symbols twice the size, twice as far apart and moving twice as fast. So they look
 // about as dense on screen near and far, in whichever direction the camera points. The first ring's size
@@ -443,7 +443,7 @@ window.makeWeatherEffects = function (viewer) {
         groups = [...drawWind(s, wind), ...drawRain(s, wind), ...drawClouds(s, wind)];
         cloudLabel(s);
         drawVisibility(s);
-        addLabel(0, 'Dubai International Airport: where the reports come from', Cesium.Color.BLACK, -1);
+        addLabel(0, 'Dubai International Airport', Cesium.Color.BLACK, -1);
       }
       movingLines.groups = groups;
       movingLines.rebuild = true;

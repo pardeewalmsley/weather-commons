@@ -1,4 +1,5 @@
-// The 3D globe: greyscale imagery, world terrain and OpenStreetMap buildings, opening over Dubai.
+// The 3D globe: satellite imagery, world terrain and OpenStreetMap buildings, opening over Dubai airport, lit by
+// the sun at each moment's time of day and dimmed by its cloud and rain.
 // Rain layers from each forecast model come in later steps (see PLAN.md).
 const status = document.getElementById('globe-status');
 
@@ -30,14 +31,22 @@ async function start() {
   scene.globe.showGroundAtmosphere = false;
   scene.fog.enabled = false;
   const dark = window.matchMedia('(prefers-color-scheme: dark)');
-  const setSky = () => { scene.backgroundColor = Cesium.Color.fromCssColorString(dark.matches ? '#3a3a3a' : '#c8c8c8'); };
-  setSky();
-  dark.addEventListener('change', setSky);
+  // The sky's grey follows the light at each moment (setLighting below); this is only the colour before that.
+  scene.backgroundColor = Cesium.Color.fromCssColorString(dark.matches ? '#3a3a3a' : '#c8c8c8');
 
-  // Light the scene from the camera, not the sun, so the city is never in night-time shade.
-  const light = new Cesium.DirectionalLight({ direction: viewer.scene.camera.directionWC });
-  viewer.scene.light = light;
-  viewer.scene.preRender.addEventListener(() => Cesium.Cartesian3.clone(viewer.scene.camera.directionWC, light.direction));
+  // Light from the sun, where it really was over Dubai at each moment (setLighting below). The clock is set to
+  // the moment's time and doesn't run on its own.
+  viewer.clock.shouldAnimate = false;
+  scene.light = new Cesium.SunLight();
+  // Shadows of the buildings on each other and on the ground, near the camera (they fade with cloud, below).
+  viewer.shadows = true;
+  viewer.terrainShadows = Cesium.ShadowMode.RECEIVE_ONLY;
+  scene.shadowMap.maximumDistance = 6000;
+  scene.shadowMap.size = 2048;
+  scene.shadowMap.softShadows = true;
+  // Without this, flat roofs shadow themselves in stripes ("shadow acne"). These are CesiumJS's own internal
+  // settings (not in its documented interface), so check them after updating CesiumJS.
+  if (scene.shadowMap._primitiveBias) Object.assign(scene.shadowMap._primitiveBias, { normalOffsetScale: 2.0, depthBias: 0.0003 });
 
   // Buildings from OpenStreetMap, plain white (cartographic).
   const buildings = await Cesium.createOsmBuildingsAsync();
@@ -55,6 +64,51 @@ async function start() {
   });
   viewer.scene.primitives.add(buildings);
 
+  // ---- Light at each moment: the time of day, then the weather ----
+  // How high the sun is over the airport at this time, in degrees (below 0: under the horizon).
+  const AIRPORT_POS = Cesium.Cartesian3.fromDegrees(window.AIRPORT.lon, window.AIRPORT.lat, 0);
+  const sunHeight = (date) => {
+    const sun = Cesium.Simon1994PlanetaryPositions.computeSunPositionInEarthInertialFrame(date);
+    const toFixed = Cesium.Transforms.computeIcrfToFixedMatrix(date) ?? Cesium.Transforms.computeTemeToPseudoFixedMatrix(date);
+    Cesium.Matrix3.multiplyByVector(toFixed, sun, sun);
+    const up = Cesium.Ellipsoid.WGS84.geodeticSurfaceNormal(AIRPORT_POS, new Cesium.Cartesian3());
+    const toSun = Cesium.Cartesian3.normalize(Cesium.Cartesian3.subtract(sun, AIRPORT_POS, sun), sun);
+    return Cesium.Math.toDegrees(Math.asin(Cesium.Cartesian3.dot(up, toSun)));
+  };
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const mix = (a, b, t) => a + (b - a) * t;
+  const SKY = { light: { day: [200, 200, 200], night: [28, 30, 36] }, dark: { day: [58, 58, 58], night: [16, 17, 20] } };
+
+  // m: one moment (time in Dubai time, cloud cover low / mid / high %, rain mm in the hour). Interpretive: the
+  // numbers below were chosen by eye, not measured.
+  //   daylight  0 at night, 1 in full day: from the sun's height (0 below 6° under the horizon, 1 above 10° up)
+  //   gloom     0 clear, 1 dark storm: from cloud cover (low cloud counts most) and rain
+  //   shadows   as dark as on a clear day when the sky is clear, gone when it is overcast
+  window.setLighting = (m) => {
+    const date = Cesium.JulianDate.fromIso8601(`${m.time}:00+04:00`);
+    viewer.clock.currentTime = date;
+    const elevation = sunHeight(date);
+    const daylight = smooth(-6, 10, elevation);
+    const cover = Math.max(m.cloudLow ?? 0, 0.8 * (m.cloudMid ?? 0), 0.5 * (m.cloudHigh ?? 0)) / 100;
+    const gloom = Math.min(1, 0.65 * cover + 0.35 * Math.min(1, (m.rainRate ?? 0) / 10));
+    const brightness = daylight * (1 - 0.65 * gloom);  // 0 to 1
+
+    scene.light.intensity = 2.2 * brightness;
+    // Shadows: only with the sun up, fading out as cloud fills the sky (darkness 1 means no shadow at all).
+    viewer.shadows = daylight > 0.05 && cover < 0.95;
+    scene.shadowMap.darkness = mix(0.35, 1, smooth(0.2, 0.95, cover));
+    // The buildings' own glow keeps them visible at night and pale in daylight.
+    buildings.customShader.setUniform('u_glow', mix(0.07, window.BUILDING_GLOW ?? 0.25, brightness));
+    // The ground and the sky darken with it.
+    imagery.brightness = mix(0.22, window.COLOUR_IMAGERY ? 1 : 1.1, brightness);
+    imagery.saturation = (window.COLOUR_IMAGERY ? 1 : 0) * mix(0.55, 1, 1 - gloom);
+    const sky = SKY[dark.matches ? 'dark' : 'light'];
+    const rgb = sky.day.map((d, i) => Math.round(mix(sky.night[i], d, Math.max(0.1, brightness))));
+    scene.backgroundColor = Cesium.Color.fromBytes(...rgb, 255);
+    scene.requestRender();
+    return { elevation, daylight, gloom, brightness };
+  };
+
   const flyTo = (v, duration) => {
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(v.lon, v.lat, v.height),
@@ -62,9 +116,68 @@ async function start() {
       duration,
     });
   };
-  flyTo(window.START_VIEW, 0);
-  window.flyToView = flyTo;  // weather.js flies to each moment's view; its "This view" button flies back to it
-  document.getElementById('all-dubai').addEventListener('click', () => flyTo(window.DUBAI_VIEW, 2));
+  // The camera circles a place very slowly: the airport (AIRPORT_VIEW in config.js), the Burj Khalifa
+  // (BURJ_VIEW), the Burj Al Arab, Dubai Harbour or Sharjah. The timeline doesn't move it. Dragging or zooming the map stops the turning so you can look
+  // around; the place's button flies back and starts it again. It starts still if the computer is set to
+  // reduce motion.
+  const orbits = {
+    airport: { view: window.AIRPORT_VIEW, at: [window.AIRPORT.lon, window.AIRPORT.lat, 0] },
+    burj: { view: window.BURJ_VIEW, at: [window.BURJ_VIEW.lon, window.BURJ_VIEW.lat, window.BURJ_VIEW.aim] },
+    'burj-al-arab': { view: window.BURJ_AL_ARAB_VIEW, at: [window.BURJ_AL_ARAB_VIEW.lon, window.BURJ_AL_ARAB_VIEW.lat, window.BURJ_AL_ARAB_VIEW.aim] },
+    harbour: { view: window.HARBOUR_VIEW, at: [window.HARBOUR_VIEW.lon, window.HARBOUR_VIEW.lat, window.HARBOUR_VIEW.aim] },
+    sharjah: { view: window.SHARJAH_VIEW, at: [window.SHARJAH_VIEW.lon, window.SHARJAH_VIEW.lat, window.SHARJAH_VIEW.aim] },
+  };
+  for (const o of Object.values(orbits)) {
+    o.target = Cesium.Cartesian3.fromDegrees(...o.at);
+    o.heading = o.view.heading;
+  }
+  const orbit = { place: orbits.airport, turning: false, wanted: !window.matchMedia('(prefers-reduced-motion: reduce)').matches };
+  const offsetOf = (o) => new Cesium.HeadingPitchRange(Cesium.Math.toRadians(o.heading), Cesium.Math.toRadians(o.view.pitch), o.view.range);
+  const place = () => {
+    const o = orbit.place;
+    viewer.camera.lookAt(o.target, offsetOf(o));
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);  // let go again, so the mouse moves the camera as usual
+    // Turn a little to the right so the place sits in the middle of the map the panel leaves free (not on a
+    // narrow screen, where the panel spans the width).
+    const panel = document.querySelector('.panel');
+    const width = viewer.canvas.clientWidth;
+    if (panel && panel.offsetWidth < width * 0.6) {
+      const fov = viewer.camera.frustum.fov * (width >= viewer.canvas.clientHeight ? 1 : width / viewer.canvas.clientHeight);
+      viewer.camera.lookRight(((panel.offsetWidth + 12) / 2 / width) * fov);
+    }
+  };
+  let last = null;
+  const tick = (now) => {
+    if (orbit.turning && orbit.wanted) {
+      const o = orbit.place;
+      if (last != null) o.heading = (o.heading + (o.view.degreesPerSecond * (now - last)) / 1000) % 360;
+      place();
+      viewer.scene.requestRender();
+    }
+    last = now;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  const circle = (name, duration) => {
+    orbit.turning = false;
+    orbit.place = orbits[name];
+    // Work out exactly where the turning will start (place() includes the small turn to the right, clear of the
+    // panel), then put the camera back and fly there, so the flight ends where the turning begins: no jump.
+    const cam = viewer.camera;
+    const from = { destination: Cesium.Cartesian3.clone(cam.positionWC), orientation: { direction: Cesium.Cartesian3.clone(cam.directionWC), up: Cesium.Cartesian3.clone(cam.upWC) } };
+    place();
+    const to = { destination: Cesium.Cartesian3.clone(cam.positionWC), orientation: { direction: Cesium.Cartesian3.clone(cam.directionWC), up: Cesium.Cartesian3.clone(cam.upWC) } };
+    if (duration > 0) cam.setView(from);
+    cam.flyTo({ ...to, duration, complete: () => { orbit.turning = true; } });
+  };
+  // Any drag, zoom or touch on the map stops the turning.
+  for (const type of ['pointerdown', 'wheel']) viewer.canvas.addEventListener(type, () => { orbit.turning = false; }, { passive: true });
+  circle('airport', 0);
+  document.getElementById('home').addEventListener('click', () => circle('airport', 2));
+  for (const name of ['burj', 'burj-al-arab', 'harbour', 'sharjah']) {
+    document.getElementById(name).addEventListener('click', () => circle(name, 2));
+  }
+  document.getElementById('all-dubai').addEventListener('click', () => { orbit.turning = false; flyTo(window.DUBAI_VIEW, 2); });
   status.hidden = true;  // loaded: the panel only shows this line for loading and errors
 
   // Let weather.js know the globe is ready.
