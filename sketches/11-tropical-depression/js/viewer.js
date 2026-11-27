@@ -117,21 +117,25 @@ async function start() {
     });
   };
   // The camera circles a place very slowly: the airport (AIRPORT_VIEW in config.js), the Burj Khalifa
-  // (BURJ_VIEW), the Burj Al Arab, Dubai Harbour or Sharjah. The timeline doesn't move it. Dragging or zooming the map stops the turning so you can look
+  // (BURJ_VIEW), the Burj Al Arab, Atlantis The Palm or Sharjah. The timeline doesn't move it. Dragging or zooming the map stops the turning so you can look
   // around; the place's button flies back and starts it again. It starts still if the computer is set to
   // reduce motion.
-  const orbits = {
-    airport: { view: window.AIRPORT_VIEW, at: [window.AIRPORT.lon, window.AIRPORT.lat, 0] },
-    burj: { view: window.BURJ_VIEW, at: [window.BURJ_VIEW.lon, window.BURJ_VIEW.lat, window.BURJ_VIEW.aim] },
-    'burj-al-arab': { view: window.BURJ_AL_ARAB_VIEW, at: [window.BURJ_AL_ARAB_VIEW.lon, window.BURJ_AL_ARAB_VIEW.lat, window.BURJ_AL_ARAB_VIEW.aim] },
-    harbour: { view: window.HARBOUR_VIEW, at: [window.HARBOUR_VIEW.lon, window.HARBOUR_VIEW.lat, window.HARBOUR_VIEW.aim] },
-    sharjah: { view: window.SHARJAH_VIEW, at: [window.SHARJAH_VIEW.lon, window.SHARJAH_VIEW.lat, window.SHARJAH_VIEW.aim] },
+  // Each place has two views: one for the Visualisation tab (the views above) and one for the Simulation tab,
+  // straight above the centre of its simulation circle, looking down (SIM_VIEW in config.js).
+  const orbitOf = (view, at) => ({ view, at, target: Cesium.Cartesian3.fromDegrees(...at), heading: view.heading });
+  const VIS = {
+    airport: [window.AIRPORT_VIEW, window.AIRPORT.lon, window.AIRPORT.lat, 0],
+    burj: [window.BURJ_VIEW], 'burj-al-arab': [window.BURJ_AL_ARAB_VIEW], atlantis: [window.ATLANTIS_VIEW], sharjah: [window.SHARJAH_VIEW],
   };
-  for (const o of Object.values(orbits)) {
-    o.target = Cesium.Cartesian3.fromDegrees(...o.at);
-    o.heading = o.view.heading;
+  const orbits = { visualisation: {}, simulation: {} };
+  for (const [name, [view, lon = view.lon, lat = view.lat, aim = view.aim]] of Object.entries(VIS)) {
+    orbits.visualisation[name] = orbitOf(view, [lon, lat, aim]);
+    const [slon, slat] = window.SIM_VIEW.centres[name];
+    const down = { range: window.SIM_VIEW.range, pitch: -90, heading: 0, degreesPerSecond: window.SIM_VIEW.degreesPerSecond };
+    orbits.simulation[name] = orbitOf(down, [slon, slat, 0]);
   }
-  const orbit = { place: orbits.airport, turning: false, wanted: !window.matchMedia('(prefers-reduced-motion: reduce)').matches };
+  let mode = 'visualisation', current = 'airport';  // the tab, and the place whose button was pressed last
+  const orbit = { place: orbits.visualisation.airport, turning: false, wanted: !window.matchMedia('(prefers-reduced-motion: reduce)').matches };
   const offsetOf = (o) => new Cesium.HeadingPitchRange(Cesium.Math.toRadians(o.heading), Cesium.Math.toRadians(o.view.pitch), o.view.range);
   const place = () => {
     const o = orbit.place;
@@ -141,7 +145,8 @@ async function start() {
     // narrow screen, where the panel spans the width).
     const panel = document.querySelector('.panel');
     const width = viewer.canvas.clientWidth;
-    if (panel && panel.offsetWidth < width * 0.6) {
+    // Not when looking straight down: turning would tilt the view off the vertical.
+    if (panel && panel.offsetWidth < width * 0.6 && o.view.pitch > -89) {
       const fov = viewer.camera.frustum.fov * (width >= viewer.canvas.clientHeight ? 1 : width / viewer.canvas.clientHeight);
       viewer.camera.lookRight(((panel.offsetWidth + 12) / 2 / width) * fov);
     }
@@ -159,8 +164,9 @@ async function start() {
   };
   requestAnimationFrame(tick);
   const circle = (name, duration) => {
+    current = name;
     orbit.turning = false;
-    orbit.place = orbits[name];
+    orbit.place = orbits[mode][name];
     // Work out exactly where the turning will start (place() includes the small turn to the right, clear of the
     // panel), then put the camera back and fly there, so the flight ends where the turning begins: no jump.
     const cam = viewer.camera;
@@ -174,10 +180,49 @@ async function start() {
   for (const type of ['pointerdown', 'wheel']) viewer.canvas.addEventListener(type, () => { orbit.turning = false; }, { passive: true });
   circle('airport', 0);
   document.getElementById('home').addEventListener('click', () => circle('airport', 2));
-  for (const name of ['burj', 'burj-al-arab', 'harbour', 'sharjah']) {
+  for (const name of ['burj', 'burj-al-arab', 'atlantis', 'sharjah']) {
     document.getElementById(name).addEventListener('click', () => circle(name, 2));
   }
-  document.getElementById('all-dubai').addEventListener('click', () => { orbit.turning = false; flyTo(window.DUBAI_VIEW, 2); });
+  // All of Dubai on the Simulation tab: straight down, north up, high enough to show every simulation circle
+  // (SIM_VIEW.centres, plus each circle's 400 m radius and a margin), moved east so the panel on the right
+  // doesn't cover them. Worked out from the window's shape each time.
+  const allCircles = () => {
+    const pts = Object.values(window.SIM_VIEW.centres).map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat, 0));
+    const sphere = Cesium.BoundingSphere.fromPoints(pts);
+    const radius = sphere.radius + 400 + 600;  // circle radius, and a margin
+    const cam = viewer.camera, w = viewer.canvas.clientWidth, h = viewer.canvas.clientHeight;
+    const panel = document.querySelector('.panel');
+    const covered = panel && panel.offsetWidth < w * 0.6 ? panel.offsetWidth + 24 : 0;  // pixels on the right
+    // Pixels at the bottom under the timeline, and at the top under the tabs.
+    const bottom = (document.querySelector('.timeline')?.offsetHeight ?? 0) + 40, top = 50;
+    // Field of view across and up the window, and the height at which the circles fit both ways in the free part.
+    const fovY = w >= h ? 2 * Math.atan(Math.tan(cam.frustum.fov / 2) * h / w) : cam.frustum.fov;
+    const fovX = 2 * Math.atan(Math.tan(fovY / 2) * w / h);
+    const freeX = 2 * Math.atan(Math.tan(fovX / 2) * (w - covered) / w);
+    const freeY = 2 * Math.atan(Math.tan(fovY / 2) * (h - top - bottom) / h);
+    const height = radius / Math.tan(Math.min(freeY, freeX) / 2);
+    // Shift the centre east by half the covered strip, and south by half the difference between bottom and top,
+    // measured on the ground, so the circles sit in the middle of the free part of the map.
+    const groundW = 2 * height * Math.tan(fovX / 2), groundH = 2 * height * Math.tan(fovY / 2);
+    const east = (covered / 2 / w) * groundW, south = ((bottom - top) / 2 / h) * groundH;
+    const c = Cesium.Cartographic.fromCartesian(sphere.center);
+    const lon = Cesium.Math.toDegrees(c.longitude) + east / (111320 * Math.cos(c.latitude));
+    const lat = Cesium.Math.toDegrees(c.latitude) - south / 110574;
+    return { lon, lat, height, heading: 0, pitch: -90 };
+  };
+  const allOfDubai = () => {
+    current = 'all-dubai';
+    orbit.turning = false;
+    flyTo(mode === 'simulation' ? allCircles() : window.DUBAI_VIEW, 2);
+  };
+  document.getElementById('all-dubai').addEventListener('click', allOfDubai);
+  // Switching tabs flies to the other view of the same place.
+  window.setCameraMode = (m) => {
+    if (m === mode) return;
+    mode = m;
+    if (current === 'all-dubai') allOfDubai();
+    else circle(current, 2);
+  };
   status.hidden = true;  // loaded: the panel only shows this line for loading and errors
 
   // Let weather.js know the globe is ready.

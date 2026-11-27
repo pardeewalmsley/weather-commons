@@ -4,6 +4,13 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Next
 
+- 2026-11-27: add sources (publication, date, link) for the figures in the introduction under "About this map": 254.8 mm at Khatm Al Shakla, heaviest since 1949, Sheikh Zayed Road flooding, flights cancelled and diverted, Metro stations closed, deaths in the UAE and Oman. Taken from widely reported facts (the same as the old Aftermath draft), not yet checked.
+
+- 2026-11-27: street-level wind and rain, simulated in the page (PALM was too heavy for a laptop and can't run in a browser). Two parts, both labelled modelled, indicative only: Part 2 is made (see Done); part 1 is not, for now.
+  1. Rain on the walls (wind-driven rain). Colour every building wall by how much rain it catches at each moment on the timeline: facing into the wind gets more, facing away gets none, scaled by wind speed (METAR, observed) and rain rate (ERA5, reanalysed). Added to the buildings' existing CustomShader in js/viewer.js, so it covers all of Dubai with no new data. Based on the driving-rain relation used in building science (rain on a wall ≈ wind speed × rain rate^0.88 × cos of the angle between the wall and the wind, ISO 15927-3); cite it in Sources and limits. Limit: one wind for the whole city; buildings don't shelter each other or change the wind. A toggle to show or hide it.
+  2. Wind around the blocks. A live 2D airflow simulation (lattice Boltzmann, on the graphics card) of a horizontal slice at street level through a few blocks, with wind entering from the storm's direction at each moment. Building footprints from OpenStreetMap for that area only, fetched once by a script in tools/ and saved in data/ (ODbL). Shown as moving streaks over the map in that area, or in its own panel. Limit: flat slice, low wind speed scaled for the simulation; shows patterns (channelling between towers, sheltered courtyards), not real speeds.
+  Order: 1 first (small, uses what is there), then 2 on one area, then decide whether to add more areas.
+
 - 2026-11-23: check the figures in The Aftermath (254.8 mm at Khatm Al Shakla, record since 1949, flight cancellations, deaths in the UAE and Oman, seeding since the 1990s, UAEREP since 2015) and add sources (publication, date, link) to each part; then remove the "Draft" line.
 - 2026-11-23: optional: a short news text, with its source, for some of the ten moments, in data/moments.json.
 - 2026-11-09: new direction: compare forecasts of the Dubai rain of 15–16 April 2024 over a 3D city model. See PLAN.md.
@@ -12,6 +19,7 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Decisions
 
+- 2026-11-27: site header hidden by default, shown on hover at the top edge, so the 3D map is full screen (see Done).
 - 2026-11-23: second part of the project: the conspiracy theories about cloud seeding after the storm. Text below the map is now "The Aftermath" (The damage, Conspiracy theories, The UAE cloud-seeding program), drafted by Claude from widely reported facts and marked as a draft. Situate and Narrate sections removed from the page; the page's Sources and limits cut to buildings, imagery, METAR and ERA5. The full list stays in README.md.
 - 2026-11-23: three more camera places, each circling slowly: Jumeirah Burj Al Arab (low, looking up; OSM has it as a plain block), Dubai Harbour (from above), Sharjah (over Khalid Lagoon). Weather area extended north and east (to 55.50° E, 25.42° N) so Sharjah has symbols; the weather there is still the Dubai airport report and the same ERA5 cell.
 - 2026-11-23: panel trimmed: no byline (the name is in the footer and README), no line on why each moment was chosen (still in data/moments.json and read out by the timeline for screen readers), no Pause motion or About buttons. Motion still starts paused under reduced motion, but can no longer be paused by hand. Camera buttons' text centred.
@@ -64,6 +72,13 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Questions
 
+- 2026-11-27: from straight above, tall towers (Burj Khalifa) lean out over the circle and hide some streaks; higher, or keep 1300 m? And should the top-down views stop turning, so north stays at the top?
+- 2026-11-27: Downtown has only 67 OSM building outlines in its square, fewer than the 3D buildings (which also use building parts); some towers are missing from the simulation. Add building:part outlines?
+- 2026-11-27: sheltered pockets where the simulated air barely moves show as faint dots, not streaks. Keep, or draw them differently?
+- 2026-11-27: which blocks for the wind simulation? Candidates: Downtown around the Burj Khalifa, Dubai Marina, the airport, or a street known to have flooded.
+- 2026-11-27: the wind simulation: over the 3D map in its area, or in a separate panel beside it?
+- 2026-11-27: is the street-level simulation a new part of sketch 11, or a new sketch (AGENTS.md: a new method gets a new sketch)? Ask a facilitator. It replaces or joins the cloud-seeding part decided 2026-11-23?
+
 - 2026-11-23: Sharjah gets Dubai airport's weather. Sharjah has its own airport (OMSJ) with METAR reports; worth showing those there?
 - 2026-11-23: with Pause motion gone, the moving symbols and turning camera can't be stopped by hand (only by the computer's reduce-motion setting). Fine, or bring back a small pause control?
 - 2026-11-16: colour satellite imagery: check with a facilitator against the shared colour rule ("no colour except the source colours of scientific imagery"). Colour imagery is arguably its own source colours.
@@ -89,6 +104,20 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 
 ## Done
 
+- 2026-11-27: second paragraph of "About this map" rewritten by Alexander: the two modes of mapping reflect the dual nature of ERA5 itself (observations, with gaps filled by a physics-based simulation), so the dataset and the map make their claim through both empirical data and mathematical formulae. Replaces the end point / starting conditions contrast, and answers the open question on ERA5 being partly modelled.
+- 2026-11-27: the wind is ERA5's on both tabs: the 3D wind arrows and their label, the panel reading (no gusts) and the simulation. js/weather.js swaps it in when each moment is put together (the airport's own wind is kept as airportWindSpeed, airportWindFrom, airportGust, not shown). The airport reports still give the visibility and the weather in words. Page text and Sources and limits updated.
+- 2026-11-27: the panel's wind reading follows the tab: ERA5 (nearest hour, no gusts, labelled ERA5) on Simulation, the airport's (with gusts, observed) on Visualisation (show() in js/weather.js, redrawn by js/modes.js). The simulation line above it no longer repeats the numbers. Visibility drops "(ring)" on Simulation, where the ring is hidden.
+- 2026-11-27: the simulation is driven by ERA5 wind 10 m above the ground (nearest hour to each moment), not the airport's METAR wind, so both modes rest on ERA5 as the introduction says. tools/fetch_april_2024.mjs now also downloads wind_speed_10m and wind_direction_10m (re-run 2026-11-27; every other value unchanged); each report has era5WindSpeed, era5WindFrom, era5WindHour. Introduction, Simulation paragraph, panel line and Sources and limits updated.
+- 2026-11-27: "About this map" opens with an introduction (the storm, its dates and consequences) and a paragraph framing the page as a case study of two ways of mapping weather: visualisation (data as end point, empirical) and simulation (data as starting conditions for equations, mathematical). The Visualisation and Simulation paragraphs are unchanged.
+- 2026-11-27: All of Dubai on the Simulation tab: straight down, north up, high enough (about 45 km, depends on the window) to show all five circles, moved clear of the panel, the tabs and the timeline (allCircles in js/viewer.js). Each circle is marked beyond 6 km by a yellow ring and its name (js/airflow.js), since the circles are only a few pixels across from that height. Switching tabs on All of Dubai flies between the angled and top-down views.
+- 2026-11-27: Dubai Harbour replaced by Atlantis The Palm (main building, OSM way 94827855, 25.1312° N, 55.1160° E): button, ATLANTIS_VIEW (angled, from the east, aim 50 m, 1.6 km, pitch -10°) and SIM_VIEW centre in js/config.js; airflow circle re-made with 48 OSM outlines (node tools/fetch_footprints.mjs atlantis); Dubai Harbour's outlines dropped from data/footprints.json.
+- 2026-11-27: the weather icon (all the symbols layered in one picture) taken out of the panel; the title, the airport line and the readings with their key symbols stay. Its code (weatherGraphic, centreGraphic) is removed from js/weather.js; it is in the git history.
+- 2026-11-27: one page again: simulate.html and js/simulate.js removed. Two tabs at the top of the map (js/modes.js): Visualisation (weather symbols, angled orbits) and Simulation (symbols and labels hidden, airflow shown, camera straight above the current place's circle). Switching flies to the other view of the place last chosen; All of Dubai keeps one view. Top-down views in SIM_VIEW (js/config.js); js/effects.js and js/airflow.js got setShown (the airflow does no work while hidden). #simulation in the address opens the Simulation tab. Text below the map: one placeholder with a paragraph per tab; Sources and limits has the outlines and the airflow.
+- 2026-11-27: (then on simulate.html) every camera place is straight above the centre of its simulation circle, looking down, north up, 1300 m up (set in a script in simulate.html, after js/config.js); still turning slowly. js/viewer.js: AIRPORT_VIEW can take its own lon/lat/aim, and the small turn clear of the panel is skipped when looking straight down. The first page is unchanged.
+- 2026-11-27: airport simulation circle moved onto Terminal 3 and Concourse B (25.2470° N, 55.3605° E, about 700 m south-west of the camera point, which is on open apron): 113 buildings instead of none. tools/fetch_footprints.mjs can now update one place (node tools/fetch_footprints.mjs airport) and also takes aeroway=terminal outlines.
+- 2026-11-27: site header hidden above the top edge, sliding down when the cursor touches the top; the map fills the screen.
+- 2026-11-27: The Aftermath taken off index.html (still in git history); replaced by a placeholder "About this map" and a link to the second page.
+- 2026-11-27: second page, "Simulating the storm" (simulate.html): the same map, camera buttons, panel and timeline, without the 3D weather symbols (js/weather.js now loads them only where js/effects.js is on the page, and announces each moment). Around each of the five camera places, a circle 800 m across with a lattice Boltzmann airflow simulation at street level (js/airflow.js, 200 × 200 cells of 4 m), driven by the airport wind of each moment and drawn as yellow streaks on the ground. Building outlines from OSM via Overpass, data/footprints.json (66 KB), by tools/fetch_footprints.mjs. Places near the camera run every frame, others one per frame in turn; about 8 ms a frame.
 - 2026-11-02: started from the template.
 - 2026-11-02: first page with a draft question, a synthetic swirl and Sources and limits.
 - 2026-11-09: PLAN.md written.
@@ -126,3 +155,4 @@ Working notes for sketch 11. Read this first. Date each entry, and move items to
 - 2026-11-23: Jumeirah Burj Al Arab, Dubai Harbour and Sharjah views; weather area extended to Sharjah.
 - 2026-11-23: no jump between the flight to a place and the start of its turning (the flight now ends at the turning's exact first view, including the small turn clear of the panel).
 - 2026-11-23: text below the map restructured as The Aftermath (draft); Situate and Narrate removed; short Sources and limits.
+- 2026-11-27: the map fills the screen from the start. The site header is hidden above the top edge and slides down over the map when the cursor touches the top of the page (or a header link gets keyboard focus). Camera buttons and panel moved up to the top.

@@ -1,9 +1,11 @@
 // Weather and story for the globe: the storm of 15–16 April 2024. A timeline at the bottom of the map moves
 // between ten key moments. The camera stays over the airport; at each moment effects.js draws that moment's
-// weather, and the panel on the right shows what happened, a weather icon and the readings.
+// weather, and the panel on the right shows what happened and the readings.
 //   data/april-2024.json (made by tools/fetch_april_2024.mjs): the weather.
-//     Observed (Dubai airport METAR reports): wind, gusts, visibility, present weather.
-//     Reanalysed (ERA5, hourly): rain in the hour, cloud cover low / mid / high.
+//     Observed (Dubai airport METAR reports): visibility and present weather. (The reports' own wind and gusts
+//       are in the file as well, but not shown: the map uses ERA5's wind, below.)
+//     Reanalysed (ERA5, hourly): rain in the hour, cloud cover low / mid / high, and wind 10 m above the ground
+//       (the nearest hour to each report), on both tabs: the symbols, the panel and the airflow simulation.
 //   data/moments.json: the ten moments, chosen by hand (interpretive): the airport report each one shows,
 //     why it was chosen, and a news text (shown only once filled in).
 
@@ -22,28 +24,22 @@ const minutes = (t) => (Date.parse(t + 'Z') - START) / 60000;
 
 // The panel at this moment: the airport's weather, and the key: one entry
 // per symbol, in its colour, with the number it is drawn from and where that comes from.
+// The wind is ERA5's at the nearest hour (no gusts: ERA5 gives none), on both tabs.
 function show(r) {
   document.getElementById('moment-airport').textContent = `Airport: ${r.weather}.`;
-  const wind = r.windFrom == null
-    ? `Wind ${r.windSpeed} km/h, direction varying`
-    : `Wind ${r.windSpeed} km/h from the ${compass(r.windFrom)}`;
+  const sim = document.body.classList.contains('simulation');
   const rows = [
-    [ICONS.wind, wind + (r.gust ? `, gusts ${r.gust}` : ''), 'observed'],
+    [ICONS.wind, `Wind ${r.windSpeed} km/h from the ${compass(r.windFrom)} at ${r.era5WindHour.slice(11)}`, 'ERA5'],
     [ICONS.rain, `Rain ${r.rainRate.toFixed(1)} mm in the hour`, 'ERA5'],
     [ICONS.cloud, `Cloud ${r.cloudLow} / ${r.cloudMid} / ${r.cloudHigh} % (low / mid / high)`, 'ERA5'],
-    [ICONS.visibility, r.visibility >= 10000 ? 'Visibility 10 km or more' : `Visibility ${(r.visibility / 1000).toFixed(1)} km (ring)`, 'observed'],
+    [ICONS.visibility, r.visibility >= 10000 ? 'Visibility 10 km or more' : `Visibility ${(r.visibility / 1000).toFixed(1)} km${sim ? '' : ' (ring)'}`, 'observed'],
   ];
   document.getElementById('readings').innerHTML = rows
     .map(([icon, text, source]) => `<li>${icon}<div>${text} <em class="muted">${source}</em></div></li>`).join('');
-  const graphic = document.getElementById('weather-graphic');
-  graphic.innerHTML = weatherGraphic(r);
-  centreGraphic(graphic.querySelector('svg'));
 }
 
-// ---- The weather graphic: a weather icon built from this moment's numbers, in the 3D view's colours ----
-const C = { wind: '#e8b100', rain: '#4a6fa5', cloud: '#00a3b4', visibility: '#b000b0', sun: '#ffd970' };
-// The three cloud bands, from the 3D view's teal: high is palest and furthest back, low darkest and in front.
-const CLOUD_TINTS = { high: '#b3e4e9', mid: '#5fc6d0', low: C.cloud };
+// ---- The symbols in the key, in the 3D view's colours ----
+const C = { wind: '#e8b100', rain: '#4a6fa5', cloud: '#00a3b4', visibility: '#b000b0' };
 
 // A cloud: overlapping circles on a rounded base, drawn twice so it gets one white outline around the whole
 // shape: first wide in white (the outline), then filled on top.
@@ -75,95 +71,6 @@ const ICONS = {
   cloud: icon(cloud(14, 8, 0.32, C.cloud)),
   visibility: icon(`<ellipse cx="14" cy="9" rx="11" ry="5" fill="none" stroke="${C.visibility}" stroke-width="2" stroke-dasharray="3.5 2.5"/>`),
 };
-
-// The icon. What shows, and how much of it, follows the numbers:
-//   sun       when it is up (daytime) and the sky is not fully covered (most cover in any band under 90 %)
-//   clouds    one per band with 15 % cover or more (high at the back, mid, low in front), larger for more cover
-//   rain      up to 8 streaks under the front cloud, more for heavier rain (square-root scale, as in 3D),
-//             slanting more in stronger wind
-//   wind      1 to 3 arrows across the cloud and rain, longer for stronger wind. They always point the same
-//             way: the direction is in the text under the icon, not in the picture. None if calm.
-//   ring      the visibility ring on the ground, as wide as you could see (the full width is 10 km); none at
-//             10 km or more, as in 3D
-// Everything overlaps in one group, which is then moved to the middle of the frame (centreGraphic).
-// Interpretive: one airport report and one ERA5 cell, drawn as a picture.
-function weatherGraphic(r) {
-  const W = 200, H = 130, GROUND = 124, MID = W / 2;
-  const out = [];
-  const most = Math.max(r.cloudLow ?? 0, r.cloudMid ?? 0, r.cloudHigh ?? 0);
-  const size = (cover) => 0.6 + 0.4 * Math.min(1, cover / 100);
-
-  const bands = [
-    { cover: r.cloudHigh, x: MID - 14, y: 30, s: 0.62, fill: CLOUD_TINTS.high },
-    { cover: r.cloudMid, x: MID + 18, y: 44, s: 0.75, fill: CLOUD_TINTS.mid },
-    { cover: r.cloudLow, x: MID - 2, y: 54, s: 1.0, fill: CLOUD_TINTS.low },
-  ];
-  const shown = bands.filter((b) => (b.cover ?? 0) >= 15);
-
-  // Sun, behind everything: peeking out over the clouds, or in the middle of a clear sky.
-  if (r.sunUp !== false && most < 90) {
-    const [sx, sy] = shown.length ? [MID + 20, 30] : [MID, 40];
-    const rays = [];
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      rays.push(`M${(sx + Math.cos(a) * 20).toFixed(1)} ${(sy + Math.sin(a) * 20).toFixed(1)}L${(sx + Math.cos(a) * 27).toFixed(1)} ${(sy + Math.sin(a) * 27).toFixed(1)}`);
-    }
-    out.push(`<g><path d="${rays.join('')}" stroke="${C.sun}" stroke-width="3.5" stroke-linecap="round"/>`
-      + `<circle cx="${sx}" cy="${sy}" r="14" fill="${C.sun}"/></g>`);
-  }
-
-  // Clouds, back to front.
-  for (const b of shown) out.push(cloud(b.x, b.y, (b.s * size(b.cover)).toFixed(2), b.fill));
-  const front = shown.at(-1) ?? bands[2];  // rain falls from the cloud in front
-
-  // Rain under the front cloud, slanting with the wind (the same way as the arrows).
-  const ms = (r.windSpeed ?? 0) / 3.6;
-  if (r.rainRate > 0.05) {
-    const n = Math.round(8 * Math.min(1, Math.max(0.15, Math.sqrt(r.rainRate / 50))));
-    const slant = Math.min(1, ms / 8);  // drops fall at about 8 m/s
-    const len = 13, dx = (slant / Math.hypot(slant, 1)) * len, dy = len / Math.hypot(slant, 1);
-    const top = Math.min(front.y + 22 * front.s + 12, GROUND - 34);  // starts below the arrows
-    const spots = [[-21, 0], [-7, 0], [7, 0], [21, 0], [-28, 16], [-14, 16], [0, 16], [14, 16]];
-    const d = spots.slice(0, n).map(([ox, oy]) => `M${(front.x + ox - dx / 2).toFixed(1)} ${(top + oy).toFixed(1)}l${dx.toFixed(1)} ${dy.toFixed(1)}`).join('');
-    out.push(`<path d="${d}" stroke="#fff" stroke-width="6" stroke-linecap="round"/>`
-      + `<path d="${d}" stroke="${C.rain}" stroke-width="3.5" stroke-linecap="round"/>`);
-  }
-
-  // Wind arrows across the cloud and rain, all pointing right.
-  if (ms >= 0.5) {
-    const n = r.windSpeed < 15 ? 1 : r.windSpeed < 30 ? 2 : 3;
-    const len = Math.min(56, Math.max(26, 20 + r.windSpeed * 0.6));
-    // Across the lower part of the cloud, a little below the middle of the icon, above the rain.
-    const rows = { 1: [[MID, 72]], 2: [[MID - 8, 66], [MID + 8, 77]], 3: [[MID, 60], [MID - 10, 70], [MID + 10, 80]] }[n];
-    for (const [x, y] of rows) out.push(arrow(x, y, len, 1, 0, 4, true));
-  }
-
-  // Ground, and the visibility ring.
-  out.push(`<line class="wg-ground" x1="${MID - 60}" y1="${GROUND}" x2="${MID + 60}" y2="${GROUND}"/>`);
-  if (r.visibility < 10000) {
-    const rx = Math.max(4, (r.visibility / 10000) * (W / 2 - 12));
-    out.push(`<ellipse cx="${MID}" cy="${GROUND}" rx="${rx.toFixed(1)}" ry="${Math.max(2.5, rx * 0.1).toFixed(1)}" fill="none" `
-      + `stroke="${C.visibility}" stroke-width="2.5" stroke-dasharray="6 4"/><circle cx="${MID}" cy="${GROUND}" r="2.5" fill="${C.visibility}"/>`);
-  }
-
-  const label = `Weather graphic: ${r.cloudLow} / ${r.cloudMid} / ${r.cloudHigh} % cloud, ${r.rainRate.toFixed(1)} mm of rain in the hour, `
-    + `wind ${Math.round(r.windSpeed)} km/h, visibility ${r.visibility >= 10000 ? '10 km or more' : (r.visibility / 1000).toFixed(1) + ' km'}.`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}"><g class="wg-all">${out.join('')}</g></svg>`;
-}
-
-// Move the whole icon to the middle of its frame, whatever it holds (a clear sky has less in it than a storm).
-// It is measured once it is on the page; if the panel is closed there is nothing to measure, so it stays put.
-function centreGraphic(svg) {
-  const g = svg?.querySelector('.wg-all');
-  if (!g) return;
-  const box = g.getBBox();
-  if (!box.width) return;
-  const [, , W, H] = svg.getAttribute('viewBox').split(' ').map(Number);
-  const pad = 6;  // room for the white outlines, which the measurement leaves out
-  const k = Math.min(1, (W - 2 * pad) / box.width, (H - 2 * pad) / box.height);
-  const tx = W / 2 - k * (box.x + box.width / 2), ty = H / 2 - k * (box.y + box.height / 2);
-  g.setAttribute('transform', `translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${k.toFixed(3)})`);
-}
 
 // ---- The timeline ----
 function makeTimeline(data, moments, onMoment) {
@@ -274,20 +181,30 @@ async function startWeather() {
   const moments = story.moments.map((m) => {
     const r = data.reports.find((x) => x.time === m.time);
     if (!r) throw new Error(`No airport report at ${m.time} in ${DATA_URL}`);
-    return { ...r, ...m };
+    // Wind: ERA5's (nearest hour) everywhere on the map; the airport's own wind is kept under airport… names.
+    return {
+      ...r, ...m,
+      airportWindSpeed: r.windSpeed, airportWindFrom: r.windFrom, airportGust: r.gust,
+      windSpeed: r.era5WindSpeed, windFrom: r.era5WindFrom, gust: null,
+    };
   });
-  const effects = window.makeWeatherEffects(window.globeViewer);
+  // The 3D weather symbols (js/effects.js), on pages that load it.
+  const effects = window.makeWeatherEffects ? window.makeWeatherEffects(window.globeViewer) : { apply() {} };
+  // The tabs (js/modes.js) redraw the readings (the wind changes source) and show and hide the symbols; hidden from the start if the page opened on the Simulation tab.
+  window.weatherEffects = effects;
+  window.showReadings = show;
+  if (document.body.classList.contains('simulation')) effects.setShown?.(false);
   // Each moment changes only the weather: the camera stays where it is.
   const timeline = makeTimeline(data, moments, (m) => {
-    // The sun at that time of day, dimmed by cloud and rain (viewer.js); the icon shows a sun only while it is up.
-    const light = window.setLighting?.(m);
-    show({ ...m, sunUp: light ? light.elevation > 0 : true });
+    // The sun at that time of day, dimmed by cloud and rain (viewer.js).
+    window.setLighting?.(m);
+    show(m);
     showNews(m);
     effects.apply(m);
+    // Other scripts on the page (js/modes.js, for the airflow) follow the moment too.
+    window.dispatchEvent(new CustomEvent('moment', { detail: m }));
   });
   timeline.go(moments.findIndex((m) => m.time === '2024-04-16T15:11'));  // open at the worst visibility
-  // A closed panel can't measure the icon, so centre it again when the panel opens.
-  document.querySelector('.panel details')?.addEventListener('toggle', () => centreGraphic(document.querySelector('#weather-graphic svg')));
 }
 
 if (window.globeViewer) startWeather();

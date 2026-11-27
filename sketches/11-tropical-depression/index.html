@@ -13,7 +13,16 @@
   /* The globe fills the window; the header and one small panel, at the right, sit on top of it. */
   .stage { position: relative; height: 100vh; height: 100dvh; }
   #globe { position: absolute; inset: 0; }
-  .stage-top { position: absolute; top: 0; left: 0; right: 0; z-index: 1; background: var(--bg); }
+  /* The map fills the screen. The site header is hidden above the top edge and slides down over the map
+     when the cursor touches the top of the page (the ::after strip) or a link in it gets keyboard focus. */
+  :root { --header: 0px; }
+  .stage-top {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 2; background: var(--bg);
+    transform: translateY(-100%); transition: transform .25s ease;
+  }
+  .stage-top::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 10px; }
+  .stage-top:hover, .stage-top:focus-within { transform: none; }
+  @media (prefers-reduced-motion: reduce) { .stage-top { transition: none; } }
   .stage-top .site-header { max-width: var(--wide); margin: 0 auto; padding: 14px 16px 10px; }
   .panel {
     /* --header is the header's height, measured by the script at the end of the page. */
@@ -46,11 +55,6 @@
   .panel #readings li:last-child { margin-bottom: 0; }
   .panel #readings li { align-items: center; }
   .key-icon { flex: none; width: 24px; height: 16px; }
-  /* The weather graphic: the 3D view's symbols layered from this moment's numbers (js/weather.js). */
-  .weather-graphic { margin: 14px 0; }
-  /* Kept short so the icon and the readings under it fit in the panel without scrolling. */
-  .weather-graphic svg { display: block; width: 100%; height: 104px; }
-  .wg-ground { stroke: var(--muted); stroke-width: 1; }
   /* The camera buttons: top left of the map, under the site header. */
   .view-buttons { position: absolute; z-index: 1; top: calc(var(--header, 96px) + 12px); left: 12px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
   .view-buttons button { text-align: center; font: inherit; font-size: 13px; color: var(--fg); background: var(--panel-bg); border: 1px solid var(--line); padding: 3px 10px; cursor: pointer; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
@@ -81,8 +85,18 @@
   #tl-labels span:last-child { transform: translateX(-100%); }
   .tl-legend { font-size: 11px; margin: 0; }
   main.below { padding-top: 40px; }
+  /* The two tabs, top centre of the map (js/modes.js). */
+  .mode-tabs { position: absolute; z-index: 1; top: 12px; left: 50%; transform: translateX(-50%); display: flex; border: 1px solid var(--line); background: var(--panel-bg); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .mode-tabs button { font: inherit; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--fg); background: transparent; border: 0; padding: 6px 16px; cursor: pointer; }
+  .mode-tabs button + button { border-left: 1px solid var(--line); }
+  .mode-tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+  .mode-tabs button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .panel .airflow-note { margin: 10px 0 0; font-size: 13px; }
+  .panel .airflow-note[hidden] { display: none; }
   @media (max-width: 600px) {
-    .panel { width: auto; left: 12px; top: calc(var(--header, 96px) + 212px); }  /* under the camera buttons */
+    .mode-tabs { left: 12px; transform: none; }
+    .view-buttons { top: calc(var(--header, 96px) + 56px); }  /* under the tabs */
+    .panel { width: auto; left: 12px; top: calc(var(--header, 96px) + 256px); }  /* under the tabs and camera buttons */
   }
 </style>
 </head>
@@ -103,12 +117,18 @@
   </div>
 
   <!-- The camera views (js/viewer.js). -->
+  <!-- The two tabs (js/modes.js): the weather symbols, or the airflow simulation seen from above. -->
+  <div class="mode-tabs" role="tablist" aria-label="What the map shows">
+    <button id="tab-visualisation" type="button" role="tab" aria-selected="true">Visualisation</button>
+    <button id="tab-simulation" type="button" role="tab" aria-selected="false" tabindex="-1">Simulation</button>
+  </div>
+
   <div class="view-buttons" role="group" aria-label="Camera views">
     <button id="all-dubai" type="button">All of Dubai</button>
     <button id="home" type="button">Airport</button>
     <button id="burj" type="button">Burj Khalifa</button>
     <button id="burj-al-arab" type="button">Jumeirah Burj Al Arab</button>
-    <button id="harbour" type="button">Dubai Harbour</button>
+    <button id="atlantis" type="button">Atlantis The Palm</button>
     <button id="sharjah" type="button">Sharjah</button>
   </div>
 
@@ -117,9 +137,9 @@
   <section class="panel" aria-label="In Dubai at this moment">
     <details open>
       <summary><h1>Mapping the extreme rain event in Dubai, April 2024</h1></summary>
+      <p id="airflow-wind" class="airflow-note" hidden>Loading the simulation…</p>
       <div id="moment" aria-live="polite">
         <p id="moment-airport"></p>
-        <figure class="weather-graphic" id="weather-graphic"></figure>
         <ul class="key" id="readings" aria-label="The storm at this moment, and the key"></ul>
         <div id="news" hidden>
           <p class="headline" id="news-headline"></p>
@@ -149,25 +169,20 @@
 </div>
 
 <main class="below" id="about">
-<h2>The Aftermath</h2>
-<p class="muted">Draft: a first outline of each part. Figures to be checked and sources (publication, date, link) to be added.</p>
-
-<h3>The damage</h3>
-<p>On 15 and 16 April 2024 the United Arab Emirates had its heaviest rain since records began in 1949. The National Center of Meteorology (NCM) measured 254.8 mm in under 24 hours at Khatm Al Shakla near Al Ain, more than the country usually gets in a year. In Dubai, Sheikh Zayed Road and other main roads flooded, Metro stations closed, and many homes were cut off or left without power and water for days. Dubai International Airport, one of the world's busiest, diverted and cancelled hundreds of flights, and it took days to recover. People died in the UAE and in neighbouring Oman, where flash floods struck a day earlier.</p>
-
-<h3>Conspiracy theories</h3>
-<p>Within hours, posts on social media blamed the UAE's cloud-seeding programme for the floods: that seeding had gone wrong, or that the weather had been changed on purpose. Early news reports added to this by quoting a forecaster who said seeding flights had flown in the days before the storm; the NCM later said that no seeding took place during the storm itself. The claims spread far beyond the region and joined older theories about weather control and geoengineering.</p>
-<p>Meteorologists answered that seeding cannot make a storm of this size: at best it adds a little rain to clouds that are already able to rain, and this storm was a large weather system that forecast models had seen coming days ahead. Attribution scientists pointed instead to a warming climate, which makes heavy rain of this kind heavier, though the data for the region were too few to say by exactly how much.</p>
-
-<h3>The UAE cloud-seeding program</h3>
-<p>The UAE has seeded clouds since the 1990s, now through the NCM. Planes fly into growing convective clouds, often over the Hajar Mountains in the east, and fire flares of salt particles that help water droplets grow large enough to fall. Since 2015 the UAE Research Program for Rain Enhancement Science has funded research into it around the world. The country gets very little rain and draws most of its drinking water from the sea through desalination; seeding is one of the ways it tries to add to its water. How much rain seeding really adds is still debated among scientists.</p>
+<h2>About this map</h2>
+<p>On 15 and 16 April 2024 a slow-moving storm brought the United Arab Emirates its heaviest rain since records began in 1949. The National Center of Meteorology measured 254.8 mm in under 24 hours at Khatm Al Shakla, near Al Ain: more than the country usually gets in a year. In Dubai, main roads such as Sheikh Zayed Road flooded, Dubai International Airport cancelled and diverted hundreds of flights, Metro stations closed, and some homes were cut off for days. People died in the UAE and in neighbouring Oman.</p>
+<p>In this web experiment, the storm is a case study of two ways of mapping weather: as visualisation and as simulation. Both are based on historical data from the ERA5 dataset, ECMWF's hour-by-hour reconstruction of the world's past weather (the visualisation adds the visibility and the weather in words from the reports of Dubai International Airport). These two modes of mapping reflect the dual nature of the ERA5 dataset itself: at once a product of observations using realtime sensors, with gaps filled in using a physics-based simulation. The result is a dataset – and a map – that stakes an epistemological claim via the combination of both empirical data and mathematical formulae.</p>
+<p><strong>Visualisation.</strong> The panel shows the wind, rain and cloud cover from ERA5 (reanalysed) and the visibility reported at Dubai International Airport (observed); the symbols over the city show the same weather in 3D, and the sun lights the buildings as it did at that hour.</p>
+<p><strong>Simulation.</strong> How the storm's wind moved between the buildings. Around each place, a circle of the city 800 m across holds a simulation of the air at street level, seen from straight above: the wind comes in from the direction ERA5 gives for that hour, and yellow streaks follow it round the buildings, squeezed and faster between towers, slow and turning behind them. Modelled, indicative only: the simulation is flat, with no building heights, and its air is slower and smoother than the storm's, so it shows the patterns of the flow, not real speeds or gusts. Every place gets the same ERA5 wind, from one grid cell about 28 km across, which smooths out the storm's gusts and squalls.</p>
 
 <h2>Sources and limits</h2>
 <ul>
   <li>Buildings: Cesium OSM Buildings, made by Cesium from OpenStreetMap data, © OpenStreetMap contributors, ODbL. Streamed from Cesium ion, not stored here. Building heights in OpenStreetMap are incomplete and partly estimated, and some buildings are plain blocks (the Burj Al Arab has no sail). Cartographic.</li>
   <li>Satellite imagery: the default imagery from Cesium ion (credited on the globe), in its own colours. Cartographic.</li>
-  <li>Wind, gusts and visibility: the 100 METAR reports from Dubai International Airport (OMDB, 25.25° N, 55.36° E) between 15 April 00:00 and 17 April 00:00 2024, Dubai time, from the Iowa Environmental Mesonet ASOS/METAR archive, Iowa State University (mesonet.agron.iastate.edu), downloaded 2026-11-16. Observed. Wind is measured 10 m above the ground; speeds converted from knots to km/h. The reports give no rain amounts. One report is used for the whole map.</li>
-  <li>Rain (mm in the hour) and cloud cover (low, mid, high, %): ERA5 hourly reanalysis by ECMWF for the Copernicus Climate Change Service, through the Open-Meteo historical weather API (CC BY 4.0), at the ERA5 grid cell at 25.25° N, 55.25° E (about 28 km across), downloaded 2026-11-16. Reanalysed: an estimate, not a rain-gauge reading. Contains modified Copernicus Climate Change Service information 2024. ERA5 smooths storms like this one over its grid, and its heaviest rain comes later than the airport's.</li>
+  <li>Visibility and the weather in words ("heavy thunderstorm with rain"): the 100 METAR reports from Dubai International Airport (OMDB, 25.25° N, 55.36° E) between 15 April 00:00 and 17 April 00:00 2024, Dubai time, from the Iowa Environmental Mesonet ASOS/METAR archive, Iowa State University (mesonet.agron.iastate.edu), downloaded 2026-11-16. Observed. The reports also give the wind, which the map does not use (it uses ERA5's, below), and no rain amounts. One report is used for the whole map.</li>
+  <li>Rain (mm in the hour), cloud cover (low, mid, high, %) and wind 10 m above the ground (km/h and direction, at the top of each hour; each moment takes the nearest hour), for the symbols, the panel and the simulation: ERA5 hourly reanalysis by ECMWF for the Copernicus Climate Change Service, through the Open-Meteo historical weather API (CC BY 4.0), at the ERA5 grid cell at 25.25° N, 55.25° E (about 28 km across), downloaded 2026-11-16; wind added 2026-11-27. Reanalysed: an estimate, not a rain-gauge reading. Contains modified Copernicus Climate Change Service information 2024. ERA5 smooths storms like this one over its grid, and its heaviest rain comes later than the airport's. Its wind has no gusts and is often weaker than the airport's measured wind, and from another direction (at 15:11 on 16 April the airport reported 44 km/h from the north-west; ERA5 has 29 km/h from the east-north-east).</li>
+  <li>Building outlines for the simulation: OpenStreetMap, © OpenStreetMap contributors, ODbL 1.0, downloaded through the Overpass API by tools/fetch_footprints.mjs (data/footprints.json): a square 800 m across around each place, outlines only, no heights. Cartographic. Buildings missing from OpenStreetMap are missing from the simulation.</li>
+  <li>Airflow: simulated in the page by js/airflow.js, a lattice Boltzmann model (D2Q9, BGK) on a 200 × 200 grid of 4 m cells, with the buildings as solid walls and the ERA5 wind 10 m above the ground at the nearest hour to each moment (reanalysed) as the incoming flow. Modelled, indicative: a flat slice with no heights, a much slower and smoother flow than the storm (low Reynolds number), and one wind for every place. Speeds are scaled only to show stronger and weaker wind; they are not real speeds.</li>
 </ul>
 
 <footer class="site-footer">
@@ -175,17 +190,18 @@
 </footer>
 </main>
 <script>
-  // Keep the panel between the header and the timeline, however many lines either wraps onto.
+  // Keep the panel clear of the timeline, however many lines it wraps onto. (The header is hidden, so --header stays 0.)
   const measure = (selector, name) => {
     const el = document.querySelector(selector);
     new ResizeObserver(() => document.documentElement.style.setProperty(name, el.offsetHeight + 'px')).observe(el);
   };
-  measure('.stage-top', '--header');
   measure('.timeline', '--timeline');
 </script>
 <script src="js/config.js"></script>
 <script src="js/viewer.js"></script>
 <script src="js/effects.js"></script>
+<script src="js/airflow.js"></script>
 <script src="js/weather.js"></script>
+<script src="js/modes.js"></script>
 </body>
 </html>

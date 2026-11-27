@@ -7,7 +7,7 @@
 // How many symbols there are follows the numbers; where each one starts is random (but the same each time).
 // Everything moves 4 times faster than real (SPEED), so the movement shows from a distance. A symbol that
 // leaves the square comes back on the other side; rain that reaches the ground starts again at the cloud base.
-// The same numbers (one airport report and one ERA5 hour) are used across all of Dubai and Sharjah (window.WEATHER_AREA).
+// The same numbers (one airport report and one ERA5 hour; the wind is ERA5's) are used across all of Dubai and Sharjah (window.WEATHER_AREA).
 // The symbols are drawn in rings centred under the camera: a square close by, then rings around it, each twice
 // as wide as the last, with symbols twice the size, twice as far apart and moving twice as fast. So they look
 // about as dense on screen near and far, in whichever direction the camera points. The first ring's size
@@ -204,7 +204,9 @@ window.makeWeatherEffects = function (viewer) {
     rebuild: true,
     step: 0,         // the innermost ring's step
     centre: new Cesium.Cartesian2(),
+    show: true,      // false: nothing drawn (the Simulation tab)
     update(frameState) {
+      if (!this.show) return;
       if (this.rebuild) this.build(frameState.context);
       this.follow();
       for (const { command, group: g, ring } of this.commands) {
@@ -412,6 +414,7 @@ window.makeWeatherEffects = function (viewer) {
   }
 
   // ---- Each frame: add the time since the last frame, sped up ----
+  let shown = true;
   let playing = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let last = performance.now();
   scene.preUpdate.addEventListener(() => {
@@ -435,6 +438,7 @@ window.makeWeatherEffects = function (viewer) {
       lines.removeAll();
       scene.primitives.remove(labels);  // this also frees it
       labels = scene.primitives.add(new Cesium.LabelCollection());
+      labels.show = shown;
       let groups = [];
       if (s) {
         const towards = Cesium.Math.toRadians(((s.windFrom ?? 0) + 180) % 360);
@@ -453,5 +457,11 @@ window.makeWeatherEffects = function (viewer) {
     },
     get playing() { return playing; },
     setPlaying,
+    // Show or hide every symbol and label (hidden on the Simulation tab).
+    setShown(on) {
+      shown = on;
+      movingLines.show = lines.show = labels.show = on;
+      scene.requestRender();
+    },
   };
 };
