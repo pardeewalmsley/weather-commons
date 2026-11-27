@@ -6,7 +6,8 @@
 //   Observed: the weather reports (METAR) from Dubai International Airport (OMDB), from the Iowa
 //     Environmental Mesonet archive, Iowa State University. Wind, visibility and present weather.
 //   Reanalysed: ERA5 (ECMWF, Copernicus Climate Change Service), hourly, through the Open-Meteo
-//     historical weather API, at the ERA5 grid cell nearest the Burj Khalifa. Rain and cloud cover.
+//     historical weather API, at the ERA5 grid cell nearest the Burj Khalifa. Rain, cloud cover, and the wind
+//     10 m above the ground (which drives the airflow simulation).
 
 import { writeFile, mkdir } from 'node:fs/promises';
 
@@ -19,7 +20,7 @@ const METAR_URL = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?sta
   + '&tz=Etc%2FUTC&format=onlycomma&latlon=no&missing=M&trace=T&direct=no&report_type=3&report_type=4';
 const ERA5_URL = 'https://archive-api.open-meteo.com/v1/archive?latitude=25.25&longitude=55.25'
   + '&start_date=2024-04-14&end_date=2024-04-17&models=era5&cell_selection=nearest&timezone=Asia%2FDubai'
-  + '&hourly=precipitation,cloud_cover_low,cloud_cover_mid,cloud_cover_high';
+  + '&hourly=precipitation,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_direction_10m&wind_speed_unit=kmh';
 
 const get = async (url) => {
   const res = await fetch(url);
@@ -80,6 +81,7 @@ const era5 = await (await get(ERA5_URL)).json();
 const h = era5.hourly;
 const hourly = h.time.map((time, i) => ({
   time, rain: h.precipitation[i], cloudLow: h.cloud_cover_low[i], cloudMid: h.cloud_cover_mid[i], cloudHigh: h.cloud_cover_high[i],
+  windSpeed: Math.round(h.wind_speed_10m[i]), windFrom: Math.round(h.wind_direction_10m[i]),
 })).filter((x) => x.time > '2024-04-15T00:00' && x.time <= '2024-04-17T00:00');
 
 // Each report gets the ERA5 hour it falls in. ERA5 rain at hh:00 is the total for the hour before it,
@@ -89,13 +91,20 @@ for (const r of reports) {
   if (d.getUTCMinutes() > 0) d.setUTCHours(d.getUTCHours() + 1, 0);
   const hour = hourly.find((x) => x.time === d.toISOString().slice(0, 16)) ?? hourly[0];
   Object.assign(r, { rainRate: hour.rain, cloudLow: hour.cloudLow, cloudMid: hour.cloudMid, cloudHigh: hour.cloudHigh, era5Hour: hour.time });
+  // ERA5 wind is a reading at the top of each hour, not a total, so each report takes the nearest hour's
+  // (14:04 takes 14:00, 14:40 takes 15:00).
+  const near = new Date(r.time + 'Z');
+  near.setUTCMinutes(near.getUTCMinutes() + 30, 0);
+  near.setUTCMinutes(0);
+  const i = h.time.indexOf(near.toISOString().slice(0, 16));
+  Object.assign(r, { era5WindSpeed: Math.round(h.wind_speed_10m[i]), era5WindFrom: Math.round(h.wind_direction_10m[i]), era5WindHour: h.time[i] });
 }
 
 const out = {
   about: {
     made: `Downloaded ${new Date().toISOString().slice(0, 10)} by tools/fetch_april_2024.mjs. Times are Dubai time (UTC+4).`,
     observed: 'Wind, gusts, visibility and present weather: METAR reports from Dubai International Airport (OMDB, 25.25 N, 55.36 E), from the Iowa Environmental Mesonet ASOS/METAR archive, Iowa State University (mesonet.agron.iastate.edu). Wind is measured 10 m above the ground. The reports give no rain amounts.',
-    reanalysed: `Rain (mm in the hour) and cloud cover (low, mid, high, %): ERA5 hourly reanalysis (ECMWF, Copernicus Climate Change Service), through the Open-Meteo historical weather API (CC BY 4.0), grid cell at ${era5.latitude} N, ${era5.longitude} E, about 28 km across. Contains modified Copernicus Climate Change Service information 2024.`,
+    reanalysed: `Rain (mm in the hour), cloud cover (low, mid, high, %) and wind 10 m above the ground (km/h, and the direction it comes from, at the top of each hour; each report has the nearest hour's as era5WindSpeed and era5WindFrom): ERA5 hourly reanalysis (ECMWF, Copernicus Climate Change Service), through the Open-Meteo historical weather API (CC BY 4.0), grid cell at ${era5.latitude} N, ${era5.longitude} E, about 28 km across. Contains modified Copernicus Climate Change Service information 2024.`,
   },
   start: '2024-04-15T00:00',
   end: '2024-04-17T00:00',

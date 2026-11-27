@@ -34,9 +34,21 @@ window.FOCUS = { lon: 55.2744, lat: 25.1972, half: 2000 };
 // tower; aim: the height on the tower it looks at (metres; the top is 828 m); pitch above 0 looks up.
 window.AIRPORT_VIEW = { range: 4000, pitch: -14, heading: 42, degreesPerSecond: 1 };
 window.BURJ_VIEW = { lon: 55.2744, lat: 25.1972, aim: 430, range: 1900, pitch: 5, heading: 42, degreesPerSecond: 1 };
-// Jumeirah Burj Al Arab: low down, looking up at the hotel (321 m high). Dubai Harbour: from above, looking down
+// Jumeirah Burj Al Arab: low down, looking up at the hotel (321 m high). Atlantis The Palm: from the east (the Palm's trunk), a little above
 // over the marina between Palm Jumeirah and JBR. Sharjah: over the city centre and Khalid Lagoon, as at the airport.
 window.BURJ_AL_ARAB_VIEW = { lon: 55.1853, lat: 25.1412, aim: 200, range: 1600, pitch: 2, heading: 60, degreesPerSecond: 1 };
-window.HARBOUR_VIEW = { lon: 55.1405, lat: 25.0925, aim: 0, range: 2600, pitch: -22, heading: 300, degreesPerSecond: 1 };
+window.ATLANTIS_VIEW = { lon: 55.1160, lat: 25.1312, aim: 50, range: 1600, pitch: -10, heading: 260, degreesPerSecond: 1 };
 window.SHARJAH_VIEW = { lon: 55.3960, lat: 25.3470, aim: 0, range: 4000, pitch: -14, heading: 30, degreesPerSecond: 1 };
 window.DUBAI_VIEW = { lon: 55.10, lat: 24.95, height: 14000, heading: 38, pitch: -30 };
+
+// The Simulation tab: each place's camera is straight above the centre of its airflow circle, looking down with
+// north at the top, `range` metres up, turning slowly (degreesPerSecond). The centres must match
+// data/footprints.json (set in tools/fetch_footprints.mjs). The airport's circle is on Terminal 3 and Concourse
+// B, about 700 m south-west of AIRPORT, which is on open apron. All of Dubai: DUBAI_VIEW on the Visualisation tab; on the Simulation tab, straight down over all the circles, its height worked out in js/viewer.js (allCircles) from the window's shape.
+window.SIM_VIEW = {
+  range: 1300, degreesPerSecond: 1,
+  centres: {
+    airport: [55.3605, 25.2470], burj: [55.2744, 25.1972], 'burj-al-arab': [55.1853, 25.1412],
+    atlantis: [55.1160, 25.1312], sharjah: [55.3960, 25.3470],
+  },
+};
